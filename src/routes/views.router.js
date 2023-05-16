@@ -2,7 +2,7 @@ import { Router } from "express";
 import ProductManager from "../Dao/ManagerMongo/ProductManagerMongo.js";
 import CartManager from "../Dao/ManagerMongo/CartManagerMongo.js";
 import UsersManager from "../Dao/ManagerMongo/UsersManagerMongo.js";
-import { auth, isLogged } from "../middlewares/auth.middleware.js";
+import { auth, isLogged, jwtAuth, jwtAuthCookie } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 const usersManager = new UsersManager();
@@ -16,9 +16,12 @@ router.get("/chat", (req, res) => {
 
 // Ruta para visualizar todos los productos
 router.get("/products", auth, async (req, res) => {
-    const { userId, isAdmin, role } = req.session;
-    const userLogged = await usersManager.getUserById(userId);
-    const { first_name, last_name, email, age } = userLogged;
+    // console.log("1 REQ: ", req);
+    // console.log("2 REQUSER: ", req.user);
+
+    const { first_name, last_name, email, age, role } = req.user;
+    // const userLogged = await usersManager.getUserById(userId);
+    // const { first_name, last_name, email, age } = userLogged;
 
     const productManager = new ProductManager();
     const products = await productManager.getProducts(2);
@@ -35,7 +38,7 @@ router.get("/products", auth, async (req, res) => {
 });
 
 // Ruta para visualizar todos los productos con paginación
-router.get("/products/page/:page", auth, async (req, res) => {
+router.get("/products/page/:page", jwtAuthCookie, async (req, res) => {
     const page = req.params.page || 1;
 
     const productManager = new ProductManager();
@@ -46,7 +49,7 @@ router.get("/products/page/:page", auth, async (req, res) => {
 });
 
 // Ruta para visualizar un producto en particular
-router.get("/products/:id", auth, async (req, res) => {
+router.get("/products/:id", jwtAuthCookie, async (req, res) => {
     const productManager = new ProductManager();
     const product = await productManager.getProductById(req.params.id);
 
@@ -88,11 +91,12 @@ router.get("/login", isLogged, (req, res) => {
 });
 
 // Ruta perfil de usuario
-router.get("/profile", auth, async (req, res) => {
-    const { userId, isAdmin, role } = req.session;
-    const userLogged = await usersManager.getUserById(userId);
-    const { first_name, last_name, email, age } = userLogged;
-    res.render("profile", { first_name, last_name, email, age, isAdmin, role });
+router.get("/profile", jwtAuthCookie, async (req, res) => {
+    const { first_name, last_name, email, age, role } = req.user;
+    // const { userId, isAdmin, role } = req.session;
+    // const userLogged = await usersManager.getUserById(userId);
+    // const { first_name, last_name, email, age } = userLogged;
+    res.render("profile", { first_name, last_name, email, age, role });
 });
 
 // Ruta Error de registro

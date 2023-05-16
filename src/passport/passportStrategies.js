@@ -3,7 +3,29 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as GithubStrategy } from "passport-github2";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { usersModel } from "../db/models/users.model.js";
-import { hashPassword } from "../utils/bcrypt.js";
+import { hashPassword, comparePassword } from "../utils/bcrypt.js";
+import { ExtractJwt, Strategy as JWTStrategy } from "passport-jwt";
+
+// configurar passport para usar una estrategia local (para logear usuarios con email y contraseña)
+passport.use(
+    "local",
+    new LocalStrategy(
+        {
+            usernameField: "email",
+            passwordField: "password",
+        },
+        async (email, password, done) => {
+            const user = await usersModel.findOne({ email });
+            if (!user) {
+                return done(null, false, { message: "Incorrect email" });
+            }
+            if (!(await comparePassword(password, user.password))) {
+                return done(null, false, { message: "Incorrect password" });
+            }
+            return done(null, user);
+        }
+    )
+);
 
 // configurar passport para usar una estrategia local (para autenticar usuarios con email y contraseña)
 passport.use(
@@ -73,6 +95,42 @@ passport.use(
         }
     )
 );
+
+// Secret key
+const secret = "EOsecretkey";
+const { fromExtractors, fromAuthHeaderAsBearerToken } = ExtractJwt
+
+// configurar passport para usar una estrategia con JWT (para autenticar usuarios con JWT)
+passport.use(
+    "current",
+    new JWTStrategy(
+        {
+            jwtFromRequest: fromExtractors([(req) => req.cookies.token, fromAuthHeaderAsBearerToken()]),
+            // jwtFromRequest: (req) => req.cookies.token,
+            // jwtFromRequest: ExtractJwt.fromExtractors([
+            //     ExtractJwt.fromAuthHeaderAsBearerToken(),
+            //     ExtractJwt.fromUrlQueryParameter("token"),
+            //     ExtractJwt.fromBodyField("token"),
+            // ]),
+            // jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+            secretOrKey: secret,
+        },
+        async (jwtPayload, done) => {
+            try {
+                const user = await usersModel.findById(jwtPayload.id);
+                console.log(user);
+                console.log(jwtPayload);
+                if (!user) {
+                    return done(null, false);
+                }
+                return done(null, user);
+            } catch (error) {
+
+                return done(error, false);
+            }
+        }
+    )
+)
 
 // serializar el usuario para almacenarlo en la sesión
 passport.serializeUser((user, done) => {

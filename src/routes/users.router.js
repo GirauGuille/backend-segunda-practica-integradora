@@ -1,6 +1,7 @@
 import { Router } from "express";
 import UsersManager from "../Dao/ManagerMongo/UsersManagerMongo.js";
 import passport from 'passport';
+import { generateToken } from "../utils/jwt.js";
 
 const router = Router();
 const usersManager = new UsersManager();
@@ -12,7 +13,45 @@ router.post('/register', passport.authenticate('Register', {
     passReqToCallback: true,
 }));
 
+// login con JWT sin passport (no se usa)
 router.post('/login', async (req, res) => {
+    try {
+        const user = req.body;
+        const userLogged = await usersManager.loginUser(user);
+        if (userLogged) {
+            const token = generateToken(userLogged);
+            res.cookie('token', token, { maxAge: 1000 * 60 * 60 * 24 * 30, httpOnly: true });
+            res.redirect('/products');
+            // res.send(token);
+        } else {
+            res.redirect('/errorLogin');
+        }
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// login con JWT con passport
+router.get('/loginpass', passport.authenticate('current', { session: false }), (req, res) => {
+    res.send(req.user);
+});
+
+// logout borra la cookie y la session
+router.get('/logout', (req, res) => {
+    res.clearCookie('token');
+    req.session.destroy((error) => {
+        if (error) {
+            console.log(error);
+        } else {
+            res.redirect('/login');
+        }
+    })
+});
+
+
+
+
+/* router.post('/login', async (req, res) => {
     try {
         const user = req.body;
         const userLogged = await usersManager.loginUser(user);
@@ -35,9 +74,9 @@ router.post('/login', async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+}); */
 
-router.get('/logout', (req, res) => {
+/* router.get('/logout', (req, res) => {
     req.session.destroy((error) => {
         if (error) {
             console.log(error);
@@ -45,7 +84,11 @@ router.get('/logout', (req, res) => {
             res.redirect('/login');
         }
     })
-});
+}); */
+
+
+
+
 
 // Register with passport github strategy
 router.get('/github', passport.authenticate('Github', { scope: ['user:email'] }));
@@ -59,7 +102,7 @@ router.get('/github/callback', passport.authenticate('Github', {
     req.session.logged = true;
     req.session.userId = req.user._id;
     req.session.isAdmin = false;
-    req.session.role = 'user';
+    req.session.role = req.user.role;
     res.redirect('/products');
 });
 
